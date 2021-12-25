@@ -8,13 +8,15 @@
     "production": "pm2 start ./app.js"
   },
   "dependencies": {
-    "axios": "^0.21.0",
+    "adm-zip": "^0.5.9",
+    "axios": "^0.21.4",
     "bluebird": "^3.7.2",
     "body-parser": "^1.19.1",
     "chalk": "^4.1.2",
     "colors": "^1.4.0",
     "dotenv": "^4.0.0",
     "express": "^4.16.3",
+    "fast-csv": "^4.3.6",
     "lodash": "^4.17.21",
     "moment": "^2.29.1",
     "mongodb": "^4.1.2",
@@ -23,7 +25,8 @@
     "redis": "^3.1.2",
     "validator": "^10.11.0",
     "winston": "^3.2.1",
-    "ws": "^8.2.2"
+    "ws": "^8.2.2",
+    "xml2js": "^0.4.23"
   },
   "devDependencies": {
     "eslint": "^4.19.1",

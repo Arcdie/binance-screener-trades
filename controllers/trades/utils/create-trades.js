@@ -38,8 +38,6 @@ const createTrades = async ({
       time: trade.time,
     }));
 
-    console.log(Trade);
-
     await Trade.insertMany(newTrades);
 
     return {
