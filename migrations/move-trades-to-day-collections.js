@@ -16,7 +16,13 @@ module.exports = async () => {
   console.time('migration');
   console.log('Migration started');
 
-  const collectionNames = Object.keys(mongoose.connection.collections);
+  const collectionNames = Object
+    .keys(mongoose.connection.collections)
+    .filter(collectionName => collectionName !== 'trades')
+    .filter(collectionName => {
+      const splitted = collectionName.split('-');
+      return splitted.length === 2;
+    });
 
   const startDate = moment('2021-12-20 00:00:00.000Z').utc();
   const endDate = moment().utc().startOf('day').add(-1, 'days');
@@ -42,10 +48,6 @@ module.exports = async () => {
 
   targetDatesUnix.forEach(dateUnix => {
     collectionNames.forEach(collectionName => {
-      if (collectionName === 'trades') {
-        return true;
-      }
-
       const instrumentName = collectionName.split('-')[0].toUpperCase();
 
       const Trade = new mongoose.Schema(modelSchema, { versionKey: false });
@@ -61,14 +63,10 @@ module.exports = async () => {
   });
 
   for await (const collectionName of collectionNames) {
-    if (collectionName === 'trades') {
-      continue;
-    }
-
     const instrumentName = collectionName.split('-')[0].toUpperCase();
     const Trade = modelSchemasForInstruments.get(instrumentName);
 
-    console.log(`Started ${instrumentName}`);
+    console.log(`Started ${collectionName}`);
 
     for await (const dateUnix of targetDatesUnix) {
       const startOfDayDate = moment.unix(dateUnix);
@@ -100,7 +98,7 @@ module.exports = async () => {
     }
 
     incrementProcessedInstruments();
-    console.log(`Ended ${instrumentName}`);
+    console.log(`Ended ${collectionName}`);
   }
 
   console.timeEnd('migration');

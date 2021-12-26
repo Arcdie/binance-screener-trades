@@ -9,5 +9,5 @@ module.exports = () => {
   // loadWeeklyAggTradesHistory();
 
   // removeTradesForPeriod();
-  moveTradesToDayCollections();
+  // moveTradesToDayCollections();
 };
