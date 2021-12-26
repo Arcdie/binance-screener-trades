@@ -1,10 +1,7 @@
 const moment = require('moment');
+const mongoose = require('mongoose');
 
 const log = require('../../../libs/logger')(module);
-
-const {
-  modelSchemasForInstruments,
-} = require('../../models/constants');
 
 const {
   sendPrivateData,
@@ -47,17 +44,10 @@ const getTrades = async ({
       };
     }
 
-    const Trade = modelSchemasForInstruments.get(instrumentName);
-
-    if (!Trade) {
-      return {
-        status: false,
-        message: `No model trades for ${instrumentName}`,
-      };
-    }
-
     const validStartDate = moment(startDate).utc().startOf('day');
     const validEndDate = moment(endDate).utc().startOf('day');
+
+    const todayStartOfDayUnix = moment().utc().startOf('day').unix();
 
     const endDateUnix = validEndDate.unix();
 
@@ -76,19 +66,33 @@ const getTrades = async ({
     }
 
     for await (const dateUnix of targetDatesUnix) {
-      const startOfDayDate = moment.unix(dateUnix);
-      const endOfDayDate = moment.unix(dateUnix + 86400);
+      let TargetTradeModel;
 
-      const periodTrades = await Trade
-        .find({
-          $and: [{
-            time: { $gte: startOfDayDate },
-          }, {
-            time: { $lt: endOfDayDate },
-          }],
-        }, { _id: 0, data: 1, time: 1 })
-        .sort({ time: 1 })
-        .exec();
+      if (dateUnix === todayStartOfDayUnix) {
+        const collectionKey = `${instrumentName.toLowerCase()}-trades`;
+        TargetTradeModel = mongoose.connection.db.collection(collectionKey);
+      } else {
+        const collectionKey = `${instrumentName.toLowerCase()}-trades-${dateUnix}`;
+        TargetTradeModel = mongoose.connection.db.collection(collectionKey);
+      }
+
+      if (!TargetTradeModel) {
+        sendPrivateData({
+          socketId,
+
+          data: {
+            status: true,
+            startOfDayUnix: dateUnix,
+            result: [],
+          },
+        });
+
+        continue;
+      }
+
+      const periodTrades = await TargetTradeModel
+        .find({}, { _id: 0, data: 1, time: 1 })
+        .toArray();
 
       sendPrivateData({
         socketId,
@@ -117,7 +121,6 @@ const getTrades = async ({
 
     return {
       status: true,
-      result: [],
     };
   } catch (error) {
     log.warn(error.message);

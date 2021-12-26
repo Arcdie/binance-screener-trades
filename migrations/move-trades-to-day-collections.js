@@ -80,16 +80,28 @@ module.exports = async () => {
         }],
       };
 
-      const periodTrades = await Trade
+      let periodTrades = await Trade
         .find(match, { _id: 0, data: 1, time: 1 })
         .sort({ time: 1 })
         .exec();
 
+      if (!periodTrades || !periodTrades.length) {
+        console.log(`No trades; ${collectionName}, ${dateUnix}`);
+        continue;
+      }
+
       const queues = getQueue(periodTrades, 10000);
+      periodTrades = [];
+
       const TargetTradeModel = modelsMapper.get(`${instrumentName}_${dateUnix}`);
+
+      let index = 0;
 
       for await (const newTrades of queues) {
         await TargetTradeModel.insertMany(newTrades);
+
+        queues[index] = [];
+        index += 1;
       }
 
       await Trade.deleteMany(match).exec();
