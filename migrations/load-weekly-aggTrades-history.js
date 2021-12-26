@@ -25,7 +25,7 @@ const log = require('../libs/logger')(module);
 
 module.exports = async () => {
   try {
-    // return;
+    return;
     console.time('migration');
     console.log('Migration started');
 

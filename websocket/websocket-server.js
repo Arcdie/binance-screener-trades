@@ -1,13 +1,11 @@
 const ws = require('ws');
 const http = require('http');
 
-const WebSocketRoom = require('./websocket-room');
+const log = require('../libs/logger')(module);
 
 const {
   randStr,
 } = require('../libs/support');
-
-const log = require('../libs/logger')(module);
 
 const {
   ACTION_NAMES,
@@ -27,15 +25,11 @@ if (process.env.NODE_ENV === 'localhost') {
 
 const wss = new ws.Server(wsSettings);
 
-const rooms = [...ACTION_NAMES.values()]
-  .map(value => new WebSocketRoom(value));
-
 wss.on('connection', async ws => {
   const socketId = randStr(10);
 
   ws.isAlive = true;
   ws.socketId = socketId;
-  ws.listSubscriptions = [];
 
   ws.on('message', async message => {
     const data = JSON.parse(message.toString());
@@ -51,8 +45,8 @@ wss.on('connection', async ws => {
         break;
       }
 
-      case 'subscribe': {
-        await newSubscribe({
+      case 'request': {
+        await newRequest({
           data: data.data,
           socketId: ws.socketId,
         }); break;
@@ -63,33 +57,7 @@ wss.on('connection', async ws => {
   });
 });
 
-const sendData = obj => {
-  const { actionName } = obj;
-
-  const targetRoom = rooms.find(room => room.roomName === actionName);
-
-  if (!targetRoom) {
-    return true;
-  }
-
-  const socketsIds = targetRoom.members;
-
-  if (!socketsIds || !socketsIds.length) {
-    return true;
-  }
-
-  const targetClients = [...wss.clients].filter(
-    client => socketsIds.includes(client.socketId),
-  );
-
-  targetClients.forEach(ws => {
-    if (ws.isAlive) {
-      ws.send(JSON.stringify(obj));
-    }
-  });
-};
-
-const newSubscribe = async ({
+const newRequest = async ({
   data,
   socketId,
 }) => {
@@ -98,64 +66,64 @@ const newSubscribe = async ({
     return false;
   }
 
-  const subscriptionsNames = [];
+  const { requestName } = data;
 
-  if (data.subscriptionName) {
-    subscriptionsNames.push(data.subscriptionName);
-  } else {
-    subscriptionsNames.push(...data.subscriptionsNames || []);
-  }
-
-  if (!subscriptionsNames.length) {
-    log.warn('No subscriptionName');
+  if (!requestName) {
+    log.warn('No requestName');
     return false;
   }
 
-  let areSubscriptionsNamesValid = true;
-
-  subscriptionsNames.forEach(subscriptionName => {
-    if (!ACTION_NAMES.get(subscriptionName)) {
-      areSubscriptionsNamesValid = false;
-    }
-  });
-
-  if (!areSubscriptionsNamesValid) {
-    log.warn('Invalid subscriptionName');
+  if (!ACTION_NAMES.get(requestName)) {
+    log.warn('Invalid requestName');
     return false;
   }
 
-  const clientWs = [...wss.clients].find(client => client.socketId === socketId);
-  const { listSubscriptions } = clientWs;
+  data.socketId = socketId;
 
-  if (!clientWs) {
-    log.warn('No clientWs');
+  switch (requestName) {
+    case ACTION_NAMES.get('tradesData'): {
+      const resultGetTrades = await getTrades(data);
+
+      if (!resultGetTrades || !resultGetTrades.status) {
+        const message = resultGetTrades.message || 'Cant getTrades';
+        log.warn(message);
+
+        sendPrivateData({
+          socketId,
+          data: {
+            status: false,
+            message,
+          },
+        });
+      }
+
+      break;
+    }
+
+    default: break;
+  }
+};
+
+const sendPrivateData = (obj = {}) => {
+  if (!obj.socketId) {
+    log.warn('No socketId');
     return false;
   }
 
-  subscriptionsNames.forEach(subscriptionName => {
-    const doesExistSubscription = listSubscriptions.some(
-      subscription => subscription === subscriptionName,
-    );
+  const targetClient = [...wss.clients].find(
+    client => client.socketId === obj.socketId,
+  );
 
-    if (!doesExistSubscription) {
-      listSubscriptions.push(subscriptionName);
-    }
-  });
+  if (!targetClient || !targetClient.isAlive) {
+    log.warn('No or terminated targetClient');
+    return false;
+  }
 
-  subscriptionsNames.forEach(subscriptionName => {
-    const targetRoom = rooms.find(room => room.roomName === subscriptionName);
-
-    if (!targetRoom) {
-      log.warn(`No targetRoom; subscriptionName: ${subscriptionName}`);
-      return false;
-    }
-
-    targetRoom.join(socketId);
-  });
+  targetClient.send(JSON.stringify(obj.data));
 };
 
 module.exports = {
-  sendData,
+  sendPrivateData,
 };
 
 const intervalCheckDeadConnections = async (interval) => {
@@ -165,15 +133,7 @@ const intervalCheckDeadConnections = async (interval) => {
       continue;
     }
 
-    const { listSubscriptions } = client;
-
-    listSubscriptions.forEach(subscriptionName => {
-      const targetRoom = rooms.find(room => room.roomName === subscriptionName);
-      targetRoom.leave(client.socketId);
-    });
-
     console.log('Disconnect client', client.socketId);
-
     client.terminate();
   }
 
@@ -182,4 +142,8 @@ const intervalCheckDeadConnections = async (interval) => {
   }, interval);
 };
 
-intervalCheckDeadConnections(60 * 60 * 1000); // 60 minutes
+intervalCheckDeadConnections(10 * 60 * 1000); // 10 minutes
+
+const {
+  getTrades,
+} = require('../controllers/trades/utils/get-trades');

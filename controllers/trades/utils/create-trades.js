@@ -49,7 +49,7 @@ const createTrades = async ({
 
     return {
       status: false,
-      message: error.response.data,
+      message: error.message,
     };
   }
 };

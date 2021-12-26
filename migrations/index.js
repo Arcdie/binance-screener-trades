@@ -3,5 +3,5 @@ const loadWeeklyAggTradesHistory = require('./load-weekly-aggTrades-history');
 
 module.exports = () => {
   // removeAllCollections();
-  loadWeeklyAggTradesHistory();
+  // loadWeeklyAggTradesHistory();
 };
