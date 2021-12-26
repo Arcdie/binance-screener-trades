@@ -11,6 +11,8 @@ const {
 
 const { modelSchema } = require('../models/Trade');
 
+const DIVIDER = 800000;
+
 module.exports = async () => {
   return;
   console.time('migration');
@@ -80,28 +82,43 @@ module.exports = async () => {
         }],
       };
 
-      let periodTrades = await Trade
-        .find(match, { _id: 0, data: 1, time: 1 })
-        .sort({ time: 1 })
-        .exec();
+      const total = await Trade.count(match).exec();
+      const numberIterations = Math.ceil(total / DIVIDER);
 
-      if (!periodTrades || !periodTrades.length) {
-        console.log(`No trades; ${collectionName}, ${dateUnix}`);
-        continue;
+      const arrForLoop = [];
+
+      for (let i = 0; i < numberIterations; i += 1) {
+        arrForLoop.push(i);
       }
 
-      const queues = getQueue(periodTrades, 10000);
-      periodTrades = [];
+      for await (const i of arrForLoop) {
+        let periodTrades = await Trade
+          .find(match, { _id: 0, data: 1, time: 1 })
+          .sort({ time: 1 })
+          .limit(DIVIDER)
+          .skip(DIVIDER * i)
+          .exec();
 
-      const TargetTradeModel = modelsMapper.get(`${instrumentName}_${dateUnix}`);
+        console.log('lPeriod', periodTrades.length);
 
-      let index = 0;
+        if (!periodTrades || !periodTrades.length) {
+          console.log(`No trades; ${collectionName}, ${dateUnix}`);
+          continue;
+        }
 
-      for await (const newTrades of queues) {
-        await TargetTradeModel.insertMany(newTrades);
+        const queues = getQueue(periodTrades, 10000);
+        periodTrades = [];
 
-        queues[index] = [];
-        index += 1;
+        const TargetTradeModel = modelsMapper.get(`${instrumentName}_${dateUnix}`);
+
+        let index = 0;
+
+        for await (const newTrades of queues) {
+          await TargetTradeModel.insertMany(newTrades);
+
+          queues[index] = [];
+          index += 1;
+        }
       }
 
       await Trade.deleteMany(match).exec();
