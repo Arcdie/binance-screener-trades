@@ -1,7 +1,12 @@
+const fs = require('fs');
+const path = require('path');
 const moment = require('moment');
-const mongoose = require('mongoose');
 
 const log = require('../../../libs/logger')(module);
+
+const {
+  modelSchemasForInstruments,
+} = require('../../models/constants');
 
 const {
   sendPrivateData,
@@ -51,12 +56,19 @@ const getTrades = async ({
 
     const endDateUnix = validEndDate.unix();
 
-    const targetDatesUnix = [];
+    const targetDates = [];
     const tmpDate = moment(validStartDate);
 
     while (1) {
       const tmpDateUnix = tmpDate.unix();
-      targetDatesUnix.push(tmpDateUnix);
+
+      targetDates.push({
+        dateUnix: tmpDateUnix,
+        date: moment(tmpDate),
+        day: moment(tmpDate).format('DD'),
+        month: moment(tmpDate).format('MM'),
+        year: moment(tmpDate).format('YYYY'),
+      });
 
       tmpDate.add(1, 'days');
 
@@ -65,49 +77,82 @@ const getTrades = async ({
       }
     }
 
-    for await (const dateUnix of targetDatesUnix) {
-      let TargetTradeModel;
+    const pathToFilesFolder = path.join(__dirname, `../../../files/aggTrades/${instrumentName}`);
 
-      if (dateUnix === todayStartOfDayUnix) {
-        const collectionKey = `${instrumentName.toLowerCase()}-trades`;
-        TargetTradeModel = mongoose.connection.db.collection(collectionKey);
-      } else {
-        const collectionKey = `${instrumentName.toLowerCase()}-trades-${dateUnix}`;
-        TargetTradeModel = mongoose.connection.db.collection(collectionKey);
-      }
+    for await (const targetDate of targetDates) {
+      if (targetDate.dateUnix === todayStartOfDayUnix) {
+        const Trade = modelSchemasForInstruments.get(instrumentName);
 
-      if (!TargetTradeModel) {
+        if (!Trade) {
+          sendPrivateData({
+            socketId,
+
+            data: {
+              status: true,
+              startOfDayUnix: targetDate.dateUnix,
+              result: [],
+            },
+          });
+
+          continue;
+        }
+
+        const match = {
+          $and: [{
+            time: { $gte: moment(targetDate.date) },
+          }, {
+            time: { $lt: moment(targetDate.date).add(1, 'days') },
+          }],
+        };
+
+        const periodTrades = await Trade
+          .find(match, { _id: 0, data: 1, time: 1 })
+          .exec();
+
         sendPrivateData({
           socketId,
 
           data: {
             status: true,
-            startOfDayUnix: dateUnix,
-            result: [],
+            startOfDayUnix: targetDate.dateUnix,
+            result: periodTrades.map(trade => ([
+              trade.data[0],
+              trade.data[1],
+              trade.time,
+              trade.data[2],
+            ])),
           },
         });
+      } else {
+        const pathToFile = `${pathToFilesFolder}/${targetDate.day}-${targetDate.month}-${targetDate.year}.json`;
+        const doesExistFile = await checkDoesExistFile(pathToFile);
 
-        continue;
+        if (!doesExistFile) {
+          sendPrivateData({
+            socketId,
+
+            data: {
+              status: true,
+              startOfDayUnix: targetDate.dateUnix,
+              result: [],
+            },
+          });
+
+          continue;
+        }
+
+        const fileData = await fs.promises.readFile(pathToFile, 'utf8');
+
+        sendPrivateData({
+          socketId,
+
+          data: {
+            status: true,
+            startOfDayUnix: targetDate.dateUnix,
+            result: JSON.parse(fileData),
+          },
+        });
       }
-
-      const periodTrades = await TargetTradeModel
-        .find({}, { _id: 0, data: 1, time: 1 })
-        .toArray();
-
-      sendPrivateData({
-        socketId,
-
-        data: {
-          status: true,
-          startOfDayUnix: dateUnix,
-          result: periodTrades.map(trade => ([
-            trade.data[0],
-            trade.data[1],
-            trade.time,
-            trade.data[2],
-          ])),
-        },
-      });
     }
 
     sendPrivateData({
@@ -130,6 +175,14 @@ const getTrades = async ({
       message: error.message,
     };
   }
+};
+
+const checkDoesExistFile = async (pathToFile) => {
+  return new Promise(resolve => {
+    fs.exists(pathToFile, result => {
+      resolve(result);
+    });
+  });
 };
 
 module.exports = {

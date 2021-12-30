@@ -12,8 +12,8 @@ module.exports = async () => {
 
   const collectionNames = Object.keys(mongoose.connection.collections);
 
-  const startDate = moment('2021-12-25 00:00:00.000Z').utc();
-  const endDate = moment().utc();
+  const startDate = moment('2021-12-20 00:00:00.000Z').utc();
+  const endDate = moment().utc().startOf('day');
 
   const deleteMatch = {
     $and: [{
