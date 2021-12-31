@@ -55,8 +55,8 @@ module.exports = async () => {
 
     const targetDates = [];
 
-    const startDate = moment(1639958400 * 1000).utc();
-    const endDate = moment(1640304000 * 1000).utc();
+    const startDate = moment(1640563200 * 1000).utc();
+    const endDate = moment(1640822400 * 1000).utc();
 
     const tmpDate = moment(startDate);
     const incrementProcessedInstruments = processedInstrumentsCounter(instrumentsDocs.length);
@@ -117,11 +117,13 @@ module.exports = async () => {
         });
 
       for await (const fileName of filesNames) {
-        if (fileName.includes('.json')) {
+        if (!fileName.includes('.csv')) {
           continue;
         }
 
         const pathToFile = `${pathToFolder}/${fileName}`;
+        const fileDate = fileName.replace('.csv', '').split('-');
+        const pathToJsonFile = `${pathToFolder}/${fileDate[4]}-${fileDate[3]}-${fileDate[2]}.json`;
 
         let resultGetFile = await parseCSVToJSON({
           pathToFile,
@@ -132,42 +134,22 @@ module.exports = async () => {
           continue;
         }
 
-        const newTrades = [];
+        const fileData = [];
 
         resultGetFile.result.forEach(elem => {
           const [tradeId, price, quantity, firstTradeId, lastTradeId, timestamp, direction] = elem;
 
-          newTrades.push({
-            price: parseFloat(price),
-            quantity: parseFloat(quantity),
-            isLong: direction !== 'true',
-            time: new Date(parseInt(timestamp, 10)),
-          });
+          fileData.push([
+            parseFloat(price),
+            parseFloat(quantity),
+            new Date(parseInt(timestamp, 10)).toISOString(),
+            direction !== 'true',
+          ]);
         });
 
         resultGetFile = false;
-
-        console.log('numberTrades', newTrades.length);
-        const queues = getQueue(newTrades, 10000);
-
-        let isSuccess = true;
-
-        for await (const newTrades of queues) {
-          const resultCreate = await createTrades({
-            instrumentName: instrumentDoc.name,
-            trades: newTrades,
-          });
-
-          if (!resultCreate || !resultCreate.status) {
-            isSuccess = false;
-            log.warn(resultCreate.message || 'Cant createTrades');
-            break;
-          }
-        }
-
-        if (isSuccess) {
-          fs.unlinkSync(pathToFile);
-        }
+        fs.writeFileSync(pathToJsonFile, JSON.stringify(fileData));
+        fs.unlinkSync(pathToFile);
       }
 
       incrementProcessedInstruments();
