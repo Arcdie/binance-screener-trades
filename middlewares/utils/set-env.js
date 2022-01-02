@@ -2,8 +2,8 @@ const path = require('path');
 
 let fileEnv = '../config/envs/';
 
-switch (process.env.pm_cwd) {
-  case '/home/ivalentyn/www/trading-helper': fileEnv += 'development.env'; break;
+switch (process.env.PWD) {
+  case '/home/ivalentyn/www/binance-screener-trades': fileEnv += 'development.env'; break;
   default: { fileEnv += 'localhost.env'; break; }
 }
 

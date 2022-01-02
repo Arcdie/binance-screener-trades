@@ -51,8 +51,6 @@ module.exports = async () => {
       return false;
     }
 
-    instrumentsDocs.splice(0, 3);
-
     const targetDates = [];
 
     const startDate = moment(1640563200 * 1000).utc();

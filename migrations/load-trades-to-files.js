@@ -23,7 +23,7 @@ module.exports = async () => {
       .keys(mongoose.connection.collections)
       .filter(collectionName => collectionName !== 'trades');
 
-    const startDate = moment('2021-12-27 00:00:03.780Z').utc().startOf('day');
+    const startDate = moment('2021-12-31 00:00:00.780Z').utc().startOf('day');
     const endDate = moment().utc().startOf('day');
 
     const tmpDate = moment(startDate);
@@ -44,25 +44,31 @@ module.exports = async () => {
       }
     }
 
-    const pathToFilesFolder = path.join(__dirname, '../files/aggTrades');
+    const pathToFilesAggTradesFolder = path.join(__dirname, '../files/aggTrades');
+
+    targetDates.forEach(date => {
+      const validDate = `${date.day}-${date.month}-${date.year}`;
+      const dateFolderName = `${pathToFilesAggTradesFolder}/${validDate}`;
+
+      if (!fs.existsSync(dateFolderName)) {
+        fs.mkdirSync(dateFolderName);
+      }
+    });
 
     for await (const collectionName of collectionNames) {
       log.info(`Started ${collectionName}`);
 
       const instrumentName = collectionName.split('-')[0].toUpperCase();
-      const pathToFolder = `${pathToFilesFolder}/${instrumentName}`;
-
-      if (!fs.existsSync(pathToFolder)) {
-        fs.mkdirSync(pathToFolder);
-      }
-
       const Trade = modelSchemasForInstruments.get(instrumentName);
 
       for await (const targetDate of targetDates) {
         const startOfDayDate = moment(targetDate.date).startOf('day');
         const endOfDayDate = moment(targetDate.date).add(1, 'days');
 
-        const pathToFile = `${pathToFolder}/${targetDate.day}-${targetDate.month}-${targetDate.year}.json`;
+        const validDate = `${targetDate.day}-${targetDate.month}-${targetDate.year}`;
+
+        const dateFolderName = `${pathToFilesAggTradesFolder}/${validDate}`;
+        const pathToFile = `${dateFolderName}/${instrumentName}.json`;
 
         const match = {
           $and: [{

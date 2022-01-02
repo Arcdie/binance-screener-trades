@@ -1,6 +1,6 @@
 const router = require('express').Router();
 
 // router.use('/logs', require('./logs'));
-// router.use('/trades', require('./trades'));
+router.use('/files', require('./files'));
 
 module.exports = router;

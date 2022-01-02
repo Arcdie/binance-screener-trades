@@ -77,7 +77,7 @@ const getTrades = async ({
       }
     }
 
-    const pathToFilesFolder = path.join(__dirname, `../../../files/aggTrades/${instrumentName}`);
+    const pathToAggTradesFolder = path.join(__dirname, '../../../files/aggTrades');
 
     for await (const targetDate of targetDates) {
       if (targetDate.dateUnix === todayStartOfDayUnix) {
@@ -124,7 +124,10 @@ const getTrades = async ({
           },
         });
       } else {
-        const pathToFile = `${pathToFilesFolder}/${targetDate.day}-${targetDate.month}-${targetDate.year}.json`;
+        const validDate = `${targetDate.day}-${targetDate.month}-${targetDate.year}`;
+        const dateFolderName = `${pathToAggTradesFolder}/${validDate}`;
+
+        const pathToFile = `${dateFolderName}/${instrumentName}.json`;
         const doesExistFile = await checkDoesExistFile(pathToFile);
 
         if (!doesExistFile) {
