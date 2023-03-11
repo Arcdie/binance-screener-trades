@@ -15,7 +15,9 @@ const {
   app: { websocketPort },
 } = require('../config');
 
-const wsSettings = {};
+const wsSettings = {
+  maxPayload: 2e+9,
+};
 
 if (process.env.NODE_ENV === 'localhost') {
   wsSettings.port = websocketPort;
@@ -142,7 +144,7 @@ const intervalCheckDeadConnections = async (interval) => {
   }, interval);
 };
 
-intervalCheckDeadConnections(10 * 60 * 1000); // 10 minutes
+// intervalCheckDeadConnections(10 * 60 * 1000); // 10 minutes
 
 const {
   getTrades,

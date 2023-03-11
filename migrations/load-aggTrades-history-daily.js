@@ -6,12 +6,7 @@ const AdmZip = require('adm-zip');
 
 const {
   sleep,
-  getQueue,
 } = require('../libs/support');
-
-const {
-  createTrades,
-} = require('../controllers/trades/utils/create-trades');
 
 const {
   parseCSVToJSON,
@@ -45,7 +40,10 @@ module.exports = async () => {
       return false;
     }
 
-    const instrumentsDocs = (resultGetActiveInstruments.result || []);
+    let instrumentsDocs = (resultGetActiveInstruments.result || []);
+      // .filter(d => d.name === 'IOTXUSDTPERP');
+
+    // instrumentsDocs = instrumentsDocs.slice(73, instrumentsDocs.length);
 
     if (!instrumentsDocs || !instrumentsDocs.length) {
       return false;
@@ -53,14 +51,17 @@ module.exports = async () => {
 
     const targetDates = [];
 
-    const startDate = moment(1640563200 * 1000).utc();
-    const endDate = moment(1640822400 * 1000).utc();
+    // 1 december 2021 - 1 january 2022
+    const startDate = moment.unix(1638316800).utc();
+    const endDate = moment.unix(1640995200).utc();
 
     const tmpDate = moment(startDate);
     const incrementProcessedInstruments = processedInstrumentsCounter(instrumentsDocs.length);
 
     while (1) {
       targetDates.push({
+        date: moment(tmpDate),
+        dateUnix: moment(tmpDate).unix(),
         day: moment(tmpDate).format('DD'),
         month: moment(tmpDate).format('MM'),
         year: moment(tmpDate).format('YYYY'),
@@ -73,7 +74,16 @@ module.exports = async () => {
       }
     }
 
-    const pathToFilesFolder = path.join(__dirname, '../files/aggTrades');
+    const pathToFilesAggTradesFolder = path.join(__dirname, '../files/aggTrades');
+
+    targetDates.forEach(date => {
+      const validDate = `${date.day}-${date.month}-${date.year}`;
+      const dateFolderName = `${pathToFilesAggTradesFolder}/${validDate}`;
+
+      if (!fs.existsSync(dateFolderName)) {
+        fs.mkdirSync(dateFolderName);
+      }
+    });
 
     for await (const instrumentDoc of instrumentsDocs) {
       log.info(`Started ${instrumentDoc.name}`);
@@ -81,15 +91,13 @@ module.exports = async () => {
       const typeInstrument = 'futures/um';
       const instrumentName = instrumentDoc.name.replace('PERP', '');
 
-      const pathToFolder = `${pathToFilesFolder}/${instrumentDoc.name}`;
+      for await (const targetDate of targetDates) {
+        const fileName = `${instrumentName}-aggTrades-${targetDate.year}-${targetDate.month}-${targetDate.day}`;
+        const link = `data/${typeInstrument}/daily/aggTrades/${instrumentName}/${fileName}.zip`;
 
-      if (!fs.existsSync(pathToFolder)) {
-        fs.mkdirSync(pathToFolder);
-      }
+        const validDate = `${targetDate.day}-${targetDate.month}-${targetDate.year}`;
+        const pathToDateFolder = `${pathToFilesAggTradesFolder}/${validDate}`;
 
-      const links = targetDates.map(date => `data/${typeInstrument}/daily/aggTrades/${instrumentName}/${instrumentName}-aggTrades-${date.year}-${date.month}-${date.day}.zip`);
-
-      for await (const link of links) {
         try {
           const resultGetFile = await axios({
             method: 'get',
@@ -98,33 +106,15 @@ module.exports = async () => {
           });
 
           const zip = new AdmZip(resultGetFile.data);
-          zip.extractAllTo(pathToFolder, true);
+          zip.extractAllTo(pathToDateFolder, true);
         } catch (error) {
           console.log(`${link}: `, error);
         }
 
-        await sleep(2000);
-      }
-
-      const filesNames = [];
-
-      fs
-        .readdirSync(pathToFolder)
-        .forEach(fileName => {
-          filesNames.push(fileName);
-        });
-
-      for await (const fileName of filesNames) {
-        if (!fileName.includes('.csv')) {
-          continue;
-        }
-
-        const pathToFile = `${pathToFolder}/${fileName}`;
-        const fileDate = fileName.replace('.csv', '').split('-');
-        const pathToJsonFile = `${pathToFolder}/${fileDate[4]}-${fileDate[3]}-${fileDate[2]}.json`;
+        const pathToCsvFile = `${pathToDateFolder}/${fileName}.csv`;
 
         let resultGetFile = await parseCSVToJSON({
-          pathToFile,
+          pathToFile: pathToCsvFile,
         });
 
         if (!resultGetFile || !resultGetFile.status) {
@@ -146,8 +136,10 @@ module.exports = async () => {
         });
 
         resultGetFile = false;
-        fs.writeFileSync(pathToJsonFile, JSON.stringify(fileData));
-        fs.unlinkSync(pathToFile);
+        fs.writeFileSync(`${pathToDateFolder}/${instrumentDoc.name}.json`, JSON.stringify(fileData));
+        fs.unlinkSync(pathToCsvFile);
+
+        log.info(`Ended ${validDate}`);
       }
 
       incrementProcessedInstruments();

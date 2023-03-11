@@ -5,7 +5,7 @@ const removeTradesForPeriod = require('./remove-trades-for-period');
 const moveTradesToDayCollections = require('./move-trades-to-day-collections');
 
 const loadTradesToFiles = require('./load-trades-to-files');
-const loadAggTradesHistory = require('./load-aggTrades-history');
+const loadAggTradesHistoryDaily = require('./load-aggTrades-history-daily');
 
 const oldFilesSchemaToNew = require('./old-files-schema-to-new');
 
@@ -16,7 +16,7 @@ module.exports = () => {
   // moveTradesToDayCollections();
 
   // loadTradesToFiles();
-  // loadAggTradesHistory();
+  // loadAggTradesHistoryDaily();
 
   // oldFilesSchemaToNew();
 };

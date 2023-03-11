@@ -23,7 +23,7 @@ module.exports = async () => {
       .keys(mongoose.connection.collections)
       .filter(collectionName => collectionName !== 'trades');
 
-    const startDate = moment('2021-12-31 00:00:00.780Z').utc().startOf('day');
+    const startDate = moment('2022-01-02 00:00:00.780Z').utc().startOf('day');
     const endDate = moment().utc().startOf('day');
 
     const tmpDate = moment(startDate);
